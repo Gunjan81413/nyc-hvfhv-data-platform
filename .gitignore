@@ -1,0 +1,35 @@
+# Data files
+data/
+*.csv
+*.parquet
+*.zip
+*.gz
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Databricks
+.databricks/
+
+# Environment variables / secrets
+.env
+*.pem
+*.key
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
