@@ -183,3 +183,185 @@ def build_daily_provider_gold(
     )
 
     return df_gold
+
+def build_location_gold(
+    spark,
+    fact_table,
+    location_table,
+    gold_table
+):
+
+    print("Building location Gold...")
+
+    df_fact = spark.table(fact_table)
+
+    location_dim = (
+        spark.table(location_table)
+        .select(
+            col("location_key"),
+            col("zone"),
+            col("borough"),
+            col("service_zone")
+        )
+    )
+
+    df = (
+        df_fact
+        .join(
+            location_dim,
+            df_fact.pickup_location_key ==
+            location_dim.location_key,
+            "left"
+        )
+    )
+
+    df_gold = (
+        df
+        .groupBy(
+            "pickup_location_key",
+            "zone",
+            "borough",
+            "service_zone"
+        )
+        .agg(
+            count("*").alias("total_trips"),
+
+            sum("trip_miles")
+            .alias("total_trip_miles"),
+
+            avg("trip_miles")
+            .alias("avg_trip_distance"),
+
+            (
+                avg("trip_time") / 60
+            ).alias("avg_trip_duration_minutes"),
+
+            (
+                avg("customer_wait_seconds") / 60
+            ).alias("avg_customer_wait_minutes"),
+
+            sum("base_passenger_fare")
+            .alias("total_passenger_fare"),
+
+            sum("tips")
+            .alias("total_tips"),
+
+            sum("driver_pay")
+            .alias("total_driver_pay")
+        )
+    )
+
+    df_gold = (
+        df_gold
+        .withColumn(
+            "fare_per_mile",
+            when(
+                col("total_trip_miles") > 0,
+                col("total_passenger_fare")
+                / col("total_trip_miles")
+            )
+        )
+    )
+
+    (
+        df_gold
+        .write
+        .format("delta")
+        .mode("overwrite")
+        .option("overwriteSchema", "true")
+        .saveAsTable(gold_table)
+    )
+
+    print("Location Gold successfully rebuilt.")
+
+    return df_gold
+
+def build_shared_ride_gold(
+    spark,
+    fact_table,
+    provider_table,
+    gold_table
+):
+    """
+    Build provider-level shared ride metrics
+    from the complete Fact table.
+    """
+
+    print("Building shared-ride Gold...")
+
+    df_fact = spark.table(fact_table)
+
+    provider_dim = (
+        spark.table(provider_table)
+        .select(
+            "provider_key",
+            "provider_name"
+        )
+    )
+
+    df = (
+        df_fact
+        .join(
+            provider_dim,
+            "provider_key",
+            "left"
+        )
+    )
+
+    df_gold = (
+        df
+        .groupBy(
+            "provider_key",
+            "provider_name"
+        )
+        .agg(
+            count("*").alias("total_trips"),
+
+            sum(
+                when(
+                    col("shared_request") == True,
+                    1
+                ).otherwise(0)
+            ).alias("shared_requests"),
+
+            sum(
+                when(
+                    col("shared_match") == True,
+                    1
+                ).otherwise(0)
+            ).alias("shared_matches")
+        )
+    )
+
+    df_gold = (
+        df_gold
+        .withColumn(
+            "shared_request_rate",
+            when(
+                col("total_trips") > 0,
+                col("shared_requests")
+                / col("total_trips") * 100
+            )
+        )
+        .withColumn(
+            "shared_match_rate",
+            when(
+                col("total_trips") > 0,
+                col("shared_matches")
+                / col("total_trips") * 100
+            )
+        )
+    )
+
+    (
+        df_gold
+        .write
+        .format("delta")
+        .mode("overwrite")
+        .option("overwriteSchema", "true")
+        .saveAsTable(gold_table)
+    )
+
+    print("Shared-ride Gold successfully rebuilt.")
+
+    return df_gold
