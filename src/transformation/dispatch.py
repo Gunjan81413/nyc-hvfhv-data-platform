@@ -83,9 +83,12 @@ def update_dispatch_dimension(
             new_bases
             .withColumn(
                 "dispatch_key",
-                row_number().over(window) + lit(max_key)
+                col("base_num")
             )
-            .select("dispatch_key", "base_num")
+            .select(
+                "dispatch_key",
+                "base_num"
+            )
         )
 
         # Append new bases
