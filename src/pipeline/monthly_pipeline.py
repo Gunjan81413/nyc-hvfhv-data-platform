@@ -4,6 +4,7 @@ from ingestion.bronze import ingest_month_to_bronze
 from transformation.silver import transform_month_to_silver
 from transformation.dispatch import update_dispatch_dimension
 from transformation.fact import build_month_to_fact
+from data_quality.quality_checks import run_data_quality_checks
 
 from transformation.gold import (
     build_daily_provider_gold,
@@ -142,6 +143,24 @@ def run_month(spark, source_month):
         SHARED_RIDE_GOLD
     )
 
+    # ---------------------------------------------------------
+    # 7. DATA QUALITY
+    # ---------------------------------------------------------
+
+    print("\n[7/7] DATA QUALITY CHECKS")
+
+    quality_results = run_data_quality_checks(
+        spark,
+        source_month,
+        SILVER_TABLE,
+        FACT_TABLE,
+        DAILY_PROVIDER_GOLD,
+        LOCATION_GOLD,
+        SHARED_RIDE_GOLD
+    )
+
     print("\n" + "=" * 60)
     print(f"PIPELINE COMPLETED: {source_month}")
     print("=" * 60)
+    
+    return quality_results
